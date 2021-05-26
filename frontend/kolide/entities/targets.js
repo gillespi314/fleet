@@ -8,16 +8,18 @@ const defaultSelected = {
 
 export default (client) => {
   return {
-    loadAll: (query, selected = defaultSelected) => {
+    // TODO consider whether true or false is the appropriate default value for include_observer parameter
+    loadAll: (query, selected = defaultSelected, include_observer = true) => {
       const { TARGETS } = endpoints;
 
       return client
         .authenticatedPost(
           client._endpoint(TARGETS),
-          JSON.stringify({ query, selected })
+          JSON.stringify({ query, selected, include_observer })
         )
         .then((response) => {
           const { targets } = response;
+          console.log("targets: ", targets)
 
           return {
             ...response,

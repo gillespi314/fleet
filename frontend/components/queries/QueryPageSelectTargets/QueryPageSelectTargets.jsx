@@ -21,6 +21,7 @@ class QueryPageSelectTargets extends Component {
     targetsCount: PropTypes.number,
     queryTimerMilliseconds: PropTypes.number,
     disableRun: PropTypes.bool,
+    isOnlyObserver: PropTypes.bool,
   };
 
   render() {
@@ -36,6 +37,7 @@ class QueryPageSelectTargets extends Component {
       queryIsRunning,
       queryTimerMilliseconds,
       disableRun,
+      isOnlyObserver,
     } = this.props;
 
     return (
@@ -46,6 +48,7 @@ class QueryPageSelectTargets extends Component {
           onSelect={onTargetSelect}
           selectedTargets={selectedTargets}
           targetsCount={targetsCount}
+          isOnlyObserver={isOnlyObserver}
           label="Select targets"
         />
         <QueryProgressDetails

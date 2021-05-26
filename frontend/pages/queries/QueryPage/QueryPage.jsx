@@ -6,21 +6,26 @@ import FileSaver from "file-saver";
 import { clone, filter, includes, isEqual, merge } from "lodash";
 import moment from "moment";
 import { push } from "react-router-redux";
+import { Link } from "react-router";
 
 import Kolide from "kolide";
 import campaignHelpers from "redux/nodes/entities/campaigns/helpers";
 import convertToCSV from "utilities/convert_to_csv";
 import debounce from "utilities/debounce";
 import deepDifference from "utilities/deep_difference";
+import permissionUtils from "utilities/permissions";
 import entityGetter from "redux/utilities/entityGetter";
 import { formatSelectedTargetsForApi } from "kolide/helpers";
 import helpers from "pages/queries/QueryPage/helpers";
 import hostInterface from "interfaces/host";
+import Button from "components/buttons/Button";
+import KolideAce from "components/KolideAce";
 import WarningBanner from "components/WarningBanner";
 import QueryForm from "components/forms/queries/QueryForm";
 import osqueryTableInterface from "interfaces/osquery_table";
 import queryActions from "redux/nodes/entities/queries/actions";
 import queryInterface from "interfaces/query";
+import userInterface from "interfaces/user";
 import QueryPageSelectTargets from "components/queries/QueryPageSelectTargets";
 import QueryResultsTable from "components/queries/QueryResultsTable";
 import QuerySidePanel from "components/side_panels/QuerySidePanel";
@@ -33,6 +38,7 @@ import {
 import targetInterface from "interfaces/target";
 import validateQuery from "components/forms/validators/validate_query";
 import PATHS from "router/paths";
+import BackChevron from "../../../../assets/images/icon-chevron-down-9x6@2x.png";
 
 const baseClass = "query-page";
 const DEFAULT_CAMPAIGN = {
@@ -63,6 +69,7 @@ export class QueryPage extends Component {
     title: PropTypes.string,
     requestHost: PropTypes.bool,
     hostId: PropTypes.string,
+    currentUser: userInterface,
   };
 
   static defaultProps = {
@@ -83,6 +90,7 @@ export class QueryPage extends Component {
       queryResultsToggle: null,
       queryPosition: {},
       selectRelatedHostTarget: true,
+      observerShowSql: false,
     };
 
     this.csvQueryName = "Query Results";
@@ -228,6 +236,7 @@ export class QueryPage extends Component {
 
   onFetchTargets = (query, targetResponse) => {
     const { dispatch } = this.props;
+
     const { targets_count: targetsCount } = targetResponse;
 
     dispatch(setSelectedTargetsQuery(query));
@@ -597,7 +606,8 @@ export class QueryPage extends Component {
       runQueryMilliseconds,
       liveQueryError,
     } = this.state;
-    const { selectedTargets } = this.props;
+    const { selectedTargets, currentUser } = this.props;
+    const isOnlyObserver = permissionUtils.isOnlyObserver(currentUser);
 
     return (
       <QueryPageSelectTargets
@@ -612,6 +622,7 @@ export class QueryPage extends Component {
         targetsCount={targetsCount}
         queryTimerMilliseconds={runQueryMilliseconds}
         disableRun={liveQueryError !== undefined}
+        isOnlyObserver={isOnlyObserver}
       />
     );
   };
@@ -636,16 +647,92 @@ export class QueryPage extends Component {
       query,
       selectedOsqueryTable,
       title,
+      currentUser,
     } = this.props;
 
     if (loadingQueries) {
       return false;
     }
 
+    const QuerySql = () => (
+      <div id="results" className="search-results">
+        <KolideAce
+          fontSize={12}
+          name="query-details"
+          readOnly
+          showGutter
+          value={query.query}
+          wrapperClassName={`${baseClass}__query-preview`}
+          wrapEnabled
+        />
+      </div>
+    );
+
+    // Shows and hides SQL for Restricted UI
+    const editDisabledSql = () => {
+      const toggleSql = () =>
+        this.setState((prevState) => ({
+          observerShowSql: !prevState.observerShowSql,
+        }));
+      return (
+        <div>
+          <Button variant="unstyled" className="sql-button" onClick={toggleSql}>
+            {this.state.observerShowSql ? "Hide SQL" : "Show SQL"}
+          </Button>
+          {this.state.observerShowSql ? <QuerySql /> : null}
+        </div>
+      );
+    };
+
+    // TODO: Modify observerCanQueryHostCount to reflect all hosts user can query
+    const observerCanQueryHostCount = 1;
+
+    // Restricted UI for Global Observer or Team Maintainer or Team Observer
+    if (
+      permissionUtils.isGlobalObserver(currentUser) ||
+      !permissionUtils.isOnGlobalTeam(currentUser)
+    ) {
+      return (
+        <div className={`${baseClass}__content`}>
+          <div className={`${baseClass}__observer-query-view body-wrap`}>
+            <div>
+              <Link
+                to={PATHS.MANAGE_QUERIES}
+                className={`${baseClass}__back-link`}
+              >
+                <img src={BackChevron} alt="back chevron" id="back-chevron" />
+                <span>Back to queries</span>
+              </Link>
+            </div>
+            <div className={`${baseClass}__observer-query-details`}>
+              <h1>{query.name}</h1>
+              <p>{query.description}</p>
+              {editDisabledSql()}
+            </div>
+            {observerCanQueryHostCount > 0 && (
+              <div>
+                {renderLiveQueryWarning()}
+                {renderTargetsInput()}
+                {renderResultsTable()}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // UI for Global Admin and Global Maintainer
     return (
       <div className={`${baseClass} has-sidebar`}>
         <div className={`${baseClass}__content`}>
           <div className={`${baseClass}__form body-wrap`}>
+            <Link
+              to={PATHS.MANAGE_QUERIES}
+              className={`${baseClass}__back-link`}
+            >
+              <img src={BackChevron} alt="back chevron" id="back-chevron" />
+              <span>Back to queries</span>
+            </Link>
             <QueryForm
               formData={query}
               handleSubmit={onSaveQueryFormSubmit}
@@ -702,6 +789,7 @@ const mapStateToProps = (state, ownProps) => {
     .get("hosts")
     .findBy({ id: parseInt(hostId, 10) });
   const requestHost = hostId !== undefined && relatedHost === undefined;
+  const currentUser = state.auth.user;
 
   return {
     errors,
@@ -713,6 +801,7 @@ const mapStateToProps = (state, ownProps) => {
     requestHost,
     hostId,
     title,
+    currentUser,
   };
 };
 
