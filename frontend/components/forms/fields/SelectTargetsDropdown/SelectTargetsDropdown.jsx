@@ -119,21 +119,20 @@ class SelectTargetsDropdown extends Component {
     this.setState({ moreInfoTarget: null });
   };
 
-shouldIncludeObserver = () => {
-  if isOnlyObserver && observers_can_run
-}
-
   fetchTargets = (query = "", selectedTargets = this.props.selectedTargets) => {
     const { onFetchTargets } = this.props;
 
     if (!this.mounted) {
       return false;
     }
-ß
     this.setState({ isLoadingTargets: true, query });
 
     return Kolide.targets
-      .loadAll(query, formatSelectedTargetsForApi(selectedTargets), this.props.isOnlyObserver)
+      .loadAll(
+        query,
+        formatSelectedTargetsForApi(selectedTargets),
+        this.props.isOnlyObserver // TODO replace with value returned by function that applies isOnlyObserver and include_observer logic
+      )
       .then((response) => {
         const { targets } = response;
         const isEmpty = targets.length === 0;
